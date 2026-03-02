@@ -1,50 +1,38 @@
-name: Build and Push Docker Image
+name: Docker Image CI for GHCR
 
 on:
-  push:
-    branches: [ "master" ]
+  push
 
 jobs:
-  build:
+  build_and_publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Set up JDK 1.17
+        uses: actions/setup-java@v2
         with:
           java-version: '17'
-          distribution: 'temurin'
-      
-      - name: Find and Build with Maven
+          distribution: 'adopt'
+
+      - name: Build the package
+        run: mvn --batch-mode -DskipTests package
+
+      - name: Run the unit tests
+        run: mvn --batch-mode -Dmaven.test.failure.ignore=true test
+
+      - name: Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Maven Tests
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      - name: Build and push the image
         run: |
-          if [ -f "pom.xml" ]; then
-            echo "Found pom.xml in root"
-            mvn clean package -DskipTests
-          elif [ -f "Project0-Part2/pom.xml" ]; then
-            echo "Found pom.xml in Project0-Part2"
-            cd Project0-Part2 && mvn clean package -DskipTests
-            cp target/*.jar ../
-          else
-            echo "Searching for pom.xml..."
-            find . -name "pom.xml" -type f
-            echo "Please update workflow with correct path"
-            exit 1
-          fi
-      
-      - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.ACCESS_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      
-      - name: Build and push Docker image
-        run: |
-          # Convert owner name to lowercase
-          LOWERCASE_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_NAME=ghcr.io/${LOWERCASE_OWNER}/ducks-service:latest
-          echo "Building and pushing to: $IMAGE_NAME"
-          docker build -t $IMAGE_NAME .
-          docker push $IMAGE_NAME
+          docker login --username p532-spring2026-sdhekane --password ${{secrets.ACCESS_TOKEN}} ghcr.io
+          docker build -t ghcr.io/p532-spring2026-sdhekane/ducks-service:latest --file Dockerfile .
+          docker push ghcr.io/p532-spring2026-sdhekane/ducks-service:latest
