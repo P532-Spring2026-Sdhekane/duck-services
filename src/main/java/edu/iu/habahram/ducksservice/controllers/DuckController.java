@@ -51,6 +51,8 @@ public class DuckController {
 
     @GetMapping
     public List<DuckData> findAll() {
+        // USING JPA REPOSITORY - NOT FILE REPOSITORY
+        System.out.println("Fetching ducks from PostgreSQL database");
         return duckJPARepository.findAll()
                 .stream()
                 .map(DuckEntity::toDuckData)
